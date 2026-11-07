@@ -37,6 +37,13 @@
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
 
+/*PID参数宏定义*/
+#define KP 66.0f
+#define KI 66.0f
+#define KD 0.013f
+#define OUTPUT_MAX 15000.0f
+#define INTEGRATOR_MAX 10000.0f
+
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
@@ -52,21 +59,20 @@
 /* Private variables ---------------------------------------------------------*/
 /* USER CODE BEGIN Variables */
 PID_t speed_pid;
-volatile float target_speed = 0.0f; //
+/*电机变量初始化*/
+volatile float target_speed_rpm = 0.0f; //
 volatile int16_t motor_voltage=0;
 volatile uint8_t motor_online =0;
+/*CAN传输初始化*/
 volatile uint8_t can_tx_ok = 0;
-float Kp = 66.0f; //设置pid参数
-float Ki = 60.0f;
-float Kd = 0.013f;
-float output_Max = 15000.0f;
-float integrator_Max = 10000.0f;
-
+/*Uart初始化*/
 static uint8_t rx_buffer[32];
-//舵机相关
+/*舵机变量初始化*/
 int angle = 0;               // 当前目标角度
-int step = 20;               // 每次改变的角度
+int step = 20;                // 每次改变的角度
+/*按键软件消抖 时间量初始化*/
 uint32_t last_key_tick = 0;
+
 /* USER CODE END Variables */
 /* Definitions for MotorTask */
 osThreadId_t MotorTaskHandle;
@@ -193,9 +199,10 @@ void MX_FREERTOS_Init(void) {
 void StartMotorTask(void *argument)
 {
   /* USER CODE BEGIN StartMotorTask */
-  PID_Init(&speed_pid, Kp, Ki, Kd,
-      output_Max,integrator_Max);
+  PID_Init(&speed_pid, KP, KI, KD,
+      OUTPUT_MAX,INTEGRATOR_MAX);
 
+  /*计时相关*/
   uint32_t wake_tick = osKernelGetTickCount();
   uint32_t last_tick = wake_tick;
   uint32_t  clock_tick = osKernelGetTickCount();
@@ -212,15 +219,15 @@ void StartMotorTask(void *argument)
     / (float)osKernelGetTickFreq(); //两次记录tick的时间差值除以每秒的tick数 得到响应时间（单位s）
     last_tick = now;
 
-    float new_speed;
+    float new_speed_rpm;
     while (osMessageQueueGet(MotorQueueHandle,
-      &new_speed,NULL,0)==osOK) {
-      target_speed = new_speed;
+      &new_speed_rpm,NULL,0)==osOK) {
+      target_speed_rpm = new_speed_rpm;
     }
 
     motor_online=GM6020_IsOnline();
-    if (motor_online && target_speed != 0.0f) {
-      speed_pid.target = target_speed;
+    if (motor_online && target_speed_rpm != 0.0f) {
+      speed_pid.target = target_speed_rpm;
       speed_pid.feedback = motor_speed;
       motor_voltage = (int16_t)PID_Calc(&speed_pid,dt);
       if (now2 - clock_last_tick > 2000) {
@@ -257,26 +264,26 @@ void StartUartTask(void *argument)
   __HAL_DMA_DISABLE_IT(huart6.hdmarx, DMA_IT_HT);//关闭DMA过半中断
   /* Infinite loop */
   for(;;)
-  { float speed_feedback;
+  { float speed_feedback_rpm;
     if (osMessageQueueGet(UartQueueHandle,&message
       ,NULL,10) == osOK) {
-      float speed;
+      float speed_rpm;
     if (strcmp(message.text,"motor+100")==0) {
-      speed = 100.0f;
+      speed_rpm = 100.0f;
     }else if (strcmp(message.text,"motor0")==0) {
-      speed = 0.0f;
+      speed_rpm = 0.0f;
     }else {
       continue;
     }
 
-      osMessageQueuePut(MotorQueueHandle, &speed, 0, 0); //将收到的串口指令速度放入队列
+      osMessageQueuePut(MotorQueueHandle, &speed_rpm, 0, 0); //将收到的串口指令速度放入队列
 
 
     }
-    if (osMessageQueueGet(FeedbackQueueHandle, &speed_feedback, NULL, 0) == osOK){
+    if (osMessageQueueGet(FeedbackQueueHandle, &speed_feedback_rpm, NULL, 0) == osOK){
       char text[32];
-      int length = snprintf(text, sizeof(text), "speed:%d rpm\r\n", //这一段接受数据一直乱码 ai帮忙优化成这样
-                            (int)speed_feedback);
+      int length = snprintf(text, sizeof(text), "speed:%d rpm\r\n",// 格式化传递过来的字符串
+                            (int)speed_feedback_rpm);
       HAL_UART_Transmit(&huart6, (uint8_t *)text, length, 100);
     }
   }
@@ -321,6 +328,7 @@ void StartLedTask(void *argument)
       __HAL_TIM_SET_COMPARE(&htim5, TIM_CHANNEL_3,0);
       HAL_GPIO_WritePin(LED_GREEN_GPIO_Port, LED_GREEN_Pin, GPIO_PIN_SET);
     }
+
     if (motor_online == 0) { //离线的时候就灭灯亮呼吸灯
       HAL_GPIO_WritePin(LED_GREEN_GPIO_Port, LED_GREEN_Pin, GPIO_PIN_RESET);
       static int brightness=0;
@@ -357,7 +365,7 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size) {
     __HAL_DMA_DISABLE_IT(huart6.hdmarx, DMA_IT_HT);
   }
 }
-void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) //按下按键 中断中实现舵机控制
 {
   if (GPIO_Pin == KEY_Pin)
   {

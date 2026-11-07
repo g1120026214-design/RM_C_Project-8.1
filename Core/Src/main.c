@@ -32,7 +32,7 @@
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
-
+#define MOTOR_ID_1 0x205 //当前控制的电机ID为205
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
@@ -48,6 +48,8 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
+
+/*初始化can传输的参数*/
 volatile uint32_t can_rx_id =0;
 volatile uint8_t can_rx_data[8] = {0};
 volatile uint8_t can_rx_dlc =0;
@@ -103,7 +105,7 @@ int main(void)
   MX_USART6_UART_Init();
   /* USER CODE BEGIN 2 */
   HAL_TIM_PWM_Start(&htim5, TIM_CHANNEL_3);
-  CAN_Filter_Init();
+  CAN_Filter_Init(); //初始化can过滤器函数
   if (HAL_CAN_Start(&hcan1) != HAL_OK) {
     Error_Handler();
   }
@@ -211,7 +213,7 @@ void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan) {
         break;
       }
       if (RxHeader.IDE == CAN_ID_STD && RxHeader.RTR == CAN_RTR_DATA &&
-           RxHeader.StdId == 0x205 && RxHeader.DLC == 8){
+           RxHeader.StdId == MOTOR_ID_1 && RxHeader.DLC == 8){
         can_rx_id = RxHeader.StdId;
         can_rx_dlc = RxHeader.DLC;
 

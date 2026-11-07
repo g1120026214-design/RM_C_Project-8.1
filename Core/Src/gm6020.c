@@ -4,13 +4,13 @@
 #include "gm6020.h"
 #include "can.h"
 volatile uint16_t motor_encoder = 0;
-volatile int16_t motor_speed = 0;
+volatile int16_t motor_speed = 0; //速度单位为rpm
 volatile int16_t motor_current = 0;
 volatile uint8_t motor_temperature = 0;
 static volatile uint32_t last_rx_tick = 0;
 static volatile uint8_t received = 0;
 
-void GM6020_Decode(const uint8_t data[8]){
+void GM6020_Decode(const uint8_t data[8]){ //实时反馈数据解码
     motor_encoder = (uint16_t)((uint16_t)data[0] << 8 | data[1]);
     motor_speed = (int16_t)((uint16_t)data[2] << 8 | data[3]);
     motor_current = (int16_t)((uint16_t)data[4] << 8 | data[5]);

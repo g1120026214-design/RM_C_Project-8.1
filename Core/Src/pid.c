@@ -32,14 +32,14 @@ float PID_Calc(PID_t *pid,float dt) {
     if (pid == NULL || dt<=0.0f)
         return 0.0f;
     pid->error = pid->target-pid->feedback;
-    float p_out=pid->kp * pid->error;
+    float p_out = pid->kp * pid->error;
 
     pid->integral += pid->ki * pid->error*dt;
-    if (pid->integral>pid->integral_limit) {
-        pid->integral=pid->integral_limit;
+    if (pid->integral > pid->integral_limit) {
+        pid->integral = pid->integral_limit;
     }
-    if (pid->integral<-pid->integral_limit) {
-        pid->integral=-pid->integral_limit;
+    if (pid->integral < -pid->integral_limit) {
+        pid->integral = -pid->integral_limit;
     }
 
     float d_out;
@@ -53,12 +53,12 @@ float PID_Calc(PID_t *pid,float dt) {
     }
 
     pid->output = p_out + pid->integral + d_out;
-    pid->last_error=pid->error;
-    if (pid->output>pid->max_output) {
-        pid->output=pid->max_output;
+    pid->last_error = pid->error;
+    if (pid->output > pid->max_output) {
+        pid->output = pid->max_output;
     }
-    if (pid->output<-pid->max_output) {
-        pid->output=-pid->max_output;
+    if (pid->output < -pid->max_output) {
+        pid->output = -pid->max_output;
     }
 
     return pid->output;
